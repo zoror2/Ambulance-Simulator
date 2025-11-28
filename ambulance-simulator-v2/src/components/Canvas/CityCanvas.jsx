@@ -17,7 +17,7 @@ const CityCanvas = ({ onAmbulanceClick }) => {
 
   useEffect(() => {
     console.log('CityCanvas useEffect starting...');
-
+    
     // Create PixiJS application
     const app = new PIXI.Application({
       width: CANVAS_WIDTH,
@@ -32,10 +32,10 @@ const CityCanvas = ({ onAmbulanceClick }) => {
       console.error('Canvas ref is null!');
       return;
     }
-
+    
     canvasRef.current.appendChild(app.view);
     appRef.current = app;
-
+    
     console.log('Canvas added to DOM');
 
     // Create containers for layering
@@ -92,12 +92,12 @@ const CityCanvas = ({ onAmbulanceClick }) => {
     ambulanceData.forEach((ambulanceConfig) => {
       const patient = patients.find(p => p.id === ambulanceConfig.patientId);
       const hospital = hospitals.find(h => h.id === ambulanceConfig.hospitalId);
-
+      
       if (!patient || !hospital) {
         console.error('Patient or hospital not found for ambulance', ambulanceConfig.id);
         return;
       }
-
+      
       const mission = calculateMissionRoute(
         ambulanceConfig.startIntersectionId,
         patient.intersectionId,
@@ -121,15 +121,15 @@ const CityCanvas = ({ onAmbulanceClick }) => {
       }
 
       const ambulance = new Ambulance(app, ambulanceConfig, fullRoute);
-
+      
       // Verify ambulance was created properly
       if (!ambulance || !ambulance.position) {
         console.error('Failed to create ambulance properly', ambulanceConfig.id);
         return;
       }
-
+      
       console.log('Ambulance created:', ambulance.id, 'at position:', ambulance.position);
-
+      
       vehicleLayer.addChild(ambulance.getContainer());
       ambulancesRef.current.push(ambulance);
 
@@ -145,11 +145,13 @@ const CityCanvas = ({ onAmbulanceClick }) => {
 
     // Animation loop
     app.ticker.add((delta) => {
+      // Skip updates if component is destroyed
+      if (isDestroyedRef.current) return;
+      
       // Update ambulances with safety checks
       if (ambulancesRef.current && ambulancesRef.current.length > 0) {
         ambulancesRef.current.forEach((ambulance) => {
-          // Extra safety check before calling update
-          if (ambulance && !ambulance.destroyed && typeof ambulance.update === 'function') {
+          if (ambulance && typeof ambulance.update === 'function') {
             try {
               ambulance.update(delta);
             } catch (error) {
@@ -158,27 +160,25 @@ const CityCanvas = ({ onAmbulanceClick }) => {
           }
         });
       }
-
+      
       // Check proximity to traffic lights
       if (ambulancesRef.current && trafficLightsRef.current) {
         ambulancesRef.current.forEach((ambulance) => {
-          // Extra safety check for ambulance and its position
-          if (!ambulance || ambulance.destroyed || !ambulance.position || typeof ambulance.isNearIntersection !== 'function') return;
-
+          if (!ambulance || !ambulance.position || typeof ambulance.isNearIntersection !== 'function') return;
+          
           trafficLightsRef.current.forEach((light) => {
-            // Extra safety check for light
-            if (!light || light.destroyed || typeof light.getIntersectionId !== 'function' || typeof light.getState !== 'function') return;
-
+            if (!light || typeof light.getIntersectionId !== 'function') return;
+            
             try {
               const isNear = ambulance.isNearIntersection(light.getIntersectionId(), 150);
-
+              
               if (isNear && light.getState() === 'red') {
                 // Start countdown to turn green
                 light.setState('yellow');
                 light.setCountdown(3);
-
+                
                 setTimeout(() => {
-                  if (light && !light.destroyed && typeof light.setState === 'function') {
+                  if (light) {
                     light.setState('green');
                     light.setCountdown(0);
                   }
@@ -186,7 +186,7 @@ const CityCanvas = ({ onAmbulanceClick }) => {
               } else if (!isNear && light.getState() === 'green') {
                 // Return to red after delay
                 setTimeout(() => {
-                  if (light && !light.destroyed && typeof light.setState === 'function') {
+                  if (light) {
                     light.setState('red');
                     light.setCountdown(0);
                   }
